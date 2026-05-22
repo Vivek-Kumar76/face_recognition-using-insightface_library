@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Face Recognition System</title>
+<style>
+:root {
+  --bg: #f4f7fb;
+  --surface: #ffffff;
+  --border: #d7e1ea;
+  --accent: #0077ff;
+  --accent2: #00aa66;
+  --danger: #d93025;
+  --warn: #ff9800;
+  --text: #1b2a38;
+  --muted: #6b7c8c;
+  --font-mono: Consolas, monospace;
+  --font-ui:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 16px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid scan-line overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.02) 2px,
+      rgba(0,0,0,0.02) 4px
+    );
+  pointer-events: none;
+  z-index: 0;
+}
+
+  .app { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+    margin-bottom: 32px;
+  }
+
+  .logo-mark {
+    width: 44px; height: 44px;
+    border: 2px solid var(--accent);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .logo-mark::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 1px solid rgba(0,212,255,0.4);
+    border-radius: 2px;
+  }
+  .logo-mark svg { width: 20px; height: 20px; stroke: var(--accent); }
+
+  .header-text h1 {
+    font-family: var(--font-mono);
+    font-size: 1.2rem;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .header-text p {
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    margin-top: 2px;
+  }
+
+  .status-dot {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--accent2);
+  }
+  .status-dot::before {
+    content: '';
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent2);
+    box-shadow: 0 0 8px var(--accent2);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px;
+    margin-bottom: 28px;
+  }
+  .tab {
+    flex: 1;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-weight: 600;
+    font-size: 0.88rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tab.active {
+    background: rgba(0,212,255,0.1);
+    color: var(--accent);
+    border: 1px solid rgba(0,212,255,0.3);
+  }
+  .tab:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.03); }
+
+  /* Panel */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--accent);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title::before {
+    content: '//';
+    color: var(--muted);
+  }
+
+  /* Form elements */
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+
+  input[type="text"], input[type="number"] {
+    width: 100%;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.15s;
+    margin-bottom: 16px;
+  }
+  input[type="text"]:focus, input[type="number"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0,212,255,0.08);
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 16px;
+    position: relative;
+    background: #ffffff;;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(0,212,255,0.04);
+  }
+  .upload-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .upload-zone .upload-icon { font-size: 1.6rem; margin-bottom: 6px; color: var(--muted); }
+  .upload-zone .upload-label {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .upload-zone .file-name {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    color: var(--accent);
+    margin-top: 6px;
+  }
+
+  /* Preview */
+  .preview-wrap {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 16px;
+  }
+  .preview-wrap img {
+    max-width: 200px;
+    max-height: 180px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    display: block;
+  }
+  /* Corner brackets on preview */
+  .preview-wrap::before, .preview-wrap::after,
+  .preview-wrap .br::before, .preview-wrap .br::after {
+    content: '';
+    position: absolute;
+    width: 12px; height: 12px;
+    border-color: var(--accent);
+    border-style: solid;
+  }
+  .preview-wrap::before  { top: -2px;    left: -2px;  border-width: 2px 0 0 2px; }
+  .preview-wrap::after   { top: -2px;    right: -2px; border-width: 2px 2px 0 0; }
+  .preview-wrap .br::before { bottom: -2px; left: -2px;  border-width: 0 0 2px 2px; }
+  .preview-wrap .br::after  { bottom: -2px; right: -2px; border-width: 0 2px 2px 0; }
+
+  /* Two-column for match-two */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* Button */
+  .btn {
+    width: 100%;
+    padding: 12px 20px;
+    background: rgba(0,212,255,0.08);
+    border: 1px solid rgba(0,212,255,0.4);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: var(--font-ui);
+    font-weight: 700;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: rgba(0,212,255,0.16); box-shadow: 0 0 16px rgba(0,212,255,0.12); }
+  .btn:active { transform: scale(0.99); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.loading { opacity: 0.6; pointer-events: none; }
+
+  /* Result box */
+  .result-box {
+    margin-top: 20px;
+    padding: 20px;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    border: 1px solid;
+    display: none;
+  }
+  .result-box.show { display: block; }
+  .result-box.matched {
+    background: rgba(0,255,136,0.06);
+    border-color: rgba(0,255,136,0.35);
+    color: var(--accent2);
+  }
+  .result-box.unmatched {
+    background: rgba(255,60,90,0.06);
+    border-color: rgba(255,60,90,0.35);
+    color: var(--danger);
+  }
+  .result-box.error {
+    background: rgba(255,170,0,0.06);
+    border-color: rgba(255,170,0,0.35);
+    color: var(--warn);
+  }
+
+  .result-verdict {
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+  }
+  .result-row {
+    display: flex; justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.8rem;
+  }
+  .result-row:last-child { border-bottom: none; }
+  .result-key { color: var(--muted); }
+
+  /* Score bar */
+  .score-bar-wrap { margin: 14px 0 4px; }
+  .score-bar-track {
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s ease;
+    background: var(--accent2);
+  }
+  .score-bar-fill.low { background: var(--danger); }
+  .score-bar-label {
+    display: flex; justify-content: space-between;
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* Enrolled list */
+  .enrolled-list { list-style: none; }
+  .enrolled-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    background: #ffffff;
+  }
+  .enrolled-item span { color: var(--accent); }
+  .del-btn {
+    background: none;
+    border: 1px solid rgba(255,60,90,0.3);
+    border-radius: 3px;
+    color: var(--danger);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .del-btn:hover { background: rgba(255,60,90,0.1); }
+
+  .empty-state {
+    text-align: center;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 24px 0;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+        <path d="M17 3l4 4-4 4"/>
+      </svg>
+    </div>
+    <div class="header-text">
+      <h1>FaceAuth_v1</h1>
+      <p> insightface · arcface · production</p>
+    </div>
+    <div class="status-dot">API ONLINE</div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('match-two')">Compare Two</button>
+    <button class="tab" onclick="switchTab('enroll')">Enroll</button>
+    <button class="tab" onclick="switchTab('match')">Match</button>
+    <button class="tab" onclick="switchTab('enrolled'); loadEnrolled()">Enrolled</button>
+  </div>
+
+  <!-- ── TAB: Compare Two Images ── -->
+  <div id="tab-match-two" class="panel active">
+    <div class="card">
+      <div class="card-title">Compare two faces</div>
+      <div class="two-col">
+        <div>
+          <label>IMAGE 1</label>
+          <div class="upload-zone" id="zone-img1" ondragover="dragOver(event,'zone-img1')" ondragleave="dragLeave('zone-img1')" ondrop="dropFile(event,'img1-file','prev1')">
+            <input type="file" id="img1-file" accept="image/*" onchange="previewFile('img1-file','prev1','zone-img1')"/>
+            <div class="upload-icon">◈</div>
+            <div class="upload-label">Click or drag image</div>
+            <div class="file-name" id="fn1"></div>
+          </div>
+          <div id="prev1" style="display:none" class="preview-wrap"><div class="br"></div><img id="prev1-img"/></div>
+        </div>
+        <div>
+          <label>IMAGE 2</label>
+          <div class="upload-zone" id="zone-img2" ondragover="dragOver(event,'zone-img2')" ondragleave="dragLeave('zone-img2')" ondrop="dropFile(event,'img2-file','prev2')">
+            <input type="file" id="img2-file" accept="image/*" onchange="previewFile('img2-file','prev2','zone-img2')"/>
+            <div class="upload-icon">◈</div>
+            <div class="upload-label">Click or drag image</div>
+            <div class="file-name" id="fn2"></div>
+          </div>
+          <div id="prev2" style="display:none" class="preview-wrap"><div class="br"></div><img id="prev2-img"/></div>
+        </div>
+      </div>
+
+      <label>THRESHOLD (0.0 – 1.0)</label>
+      <input type="number" id="mt-threshold" value="0.5" min="0" max="1" step="0.05"/>
+
+      <button class="btn" id="mt-btn" onclick="matchTwo()">▶ RUN COMPARISON</button>
+      <div id="mt-result" class="result-box"></div>
+    </div>
+  </div>
+
+  
+  <div id="tab-enroll" class="panel">
+    <div class="card">
+      <div class="card-title">Register a new person</div>
+      <label>PERSON NAME</label>
+      <input type="text" id="enroll-name" placeholder="e.g. john_doe"/>
+
+      <label>FACE IMAGE</label>
+      <div class="upload-zone" id="zone-enroll" ondragover="dragOver(event,'zone-enroll')" ondragleave="dragLeave('zone-enroll')" ondrop="dropFile(event,'enroll-file','prev-enroll')">
+        <input type="file" id="enroll-file" accept="image/*" onchange="previewFile('enroll-file','prev-enroll','zone-enroll')"/>
+        <div class="upload-icon">◈</div>
+        <div class="upload-label">Click or drag face image</div>
+        <div class="file-name" id="fn-enroll"></div>
+      </div>
+      <div id="prev-enroll" style="display:none" class="preview-wrap"><div class="br"></div><img id="prev-enroll-img"/></div>
+
+      <button class="btn" id="enroll-btn" onclick="enrollFace()">▶ ENROLL PERSON</button>
+      <div id="enroll-result" class="result-box"></div>
+    </div>
+  </div>
+
+  <!-- ── TAB: Match vs Enrolled ── -->
+  <div id="tab-match" class="panel">
+    <div class="card">
+      <div class="card-title">Match against enrolled person</div>
+      <label>ENROLLED NAME</label>
+      <input type="text" id="match-name" placeholder="e.g. john_doe"/>
+
+      <label>LIVE / NEW IMAGE</label>
+      <div class="upload-zone" id="zone-match" ondragover="dragOver(event,'zone-match')" ondragleave="dragLeave('zone-match')" ondrop="dropFile(event,'match-file','prev-match')">
+        <input type="file" id="match-file" accept="image/*" onchange="previewFile('match-file','prev-match','zone-match')"/>
+        <div class="upload-icon">◈</div>
+        <div class="upload-label">Click or drag capture image</div>
+        <div class="file-name" id="fn-match"></div>
+      </div>
+      <div id="prev-match" style="display:none" class="preview-wrap"><div class="br"></div><img id="prev-match-img"/></div>
+
+      <label>THRESHOLD (0.0 – 1.0)</label>
+      <input type="number" id="m-threshold" value="0.5" min="0" max="1" step="0.05"/>
+
+      <button class="btn" id="match-btn" onclick="matchFace()">▶ MATCH FACE</button>
+      <div id="match-result" class="result-box"></div>
+    </div>
+  </div>
+
+  <!-- ── TAB: Enrolled List ── -->
+  <div id="tab-enrolled" class="panel">
+    <div class="card">
+      <div class="card-title">Enrolled persons</div>
+      <div id="enrolled-list-wrap">
+        <div class="empty-state">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<script>
+const API = "";  
+
+// ── Tab switching ──
+function switchTab(name) {
+  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.getElementById("tab-" + name).classList.add("active");
+  event.target.classList.add("active");
+}
+
+// ── Upload helpers ──
+function previewFile(inputId, prevId, zoneId) {
+  const file = document.getElementById(inputId).files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wrap = document.getElementById(prevId);
+    wrap.querySelector("img").src = e.target.result;
+    wrap.style.display = "inline-block";
+  };
+  reader.readAsDataURL(file);
+  const fn = document.getElementById(inputId.replace("-file","")).querySelector
+    ? null : document.getElementById("fn" + zoneId.replace("zone","").replace("-",""));
+  // update filename label
+  const fnEl = zoneId === "zone-img1" ? document.getElementById("fn1")
+             : zoneId === "zone-img2" ? document.getElementById("fn2")
+             : zoneId === "zone-enroll" ? document.getElementById("fn-enroll")
+             : document.getElementById("fn-match");
+  if (fnEl) fnEl.textContent = file.name;
+}
+
+function dragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add("dragover"); }
+function dragLeave(id) { document.getElementById(id).classList.remove("dragover"); }
+function dropFile(e, inputId, prevId) {
+  e.preventDefault();
+  const zoneId = e.currentTarget.id;
+  dragLeave(zoneId);
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  document.getElementById(inputId).files = dt.files;
+  previewFile(inputId, prevId, zoneId);
+}
+
+// ── Result renderer ──
+function showResult(boxId, data, isError) {
+  const box = document.getElementById(boxId);
+  box.className = "result-box show";
+  if (isError) {
+    box.classList.add("error");
+    box.innerHTML = `<div class="result-verdict">⚠ ERROR</div><div>${data}</div>`;
+    return;
+  }
+  const matched = data.matched;
+  box.classList.add(matched ? "matched" : "unmatched");
+  const score = data.score ?? null;
+  const scoreBar = score !== null ? `
+    <div class="score-bar-wrap">
+      <div class="score-bar-track">
+        <div class="score-bar-fill ${score < data.threshold ? 'low' : ''}" style="width:${Math.round(score*100)}%"></div>
+      </div>
+      <div class="score-bar-label"><span>0.0</span><span>threshold ${data.threshold}</span><span>1.0</span></div>
+    </div>` : "";
+  box.innerHTML = `
+    <div class="result-verdict">${matched ? " MATCHED" : " NOT MATCHED"}</div>
+    ${scoreBar}
+    ${score !== null ? `<div class="result-row"><span class="result-key">SIMILARITY SCORE</span><span>${score}</span></div>` : ""}
+    ${data.name ? `<div class="result-row"><span class="result-key">PERSON</span><span>${data.name}</span></div>` : ""}
+    <div class="result-row"><span class="result-key">THRESHOLD</span><span>${data.threshold}</span></div>
+  `;
+}
+
+// ── Compare two images ──
+async function matchTwo() {
+  const f1 = document.getElementById("img1-file").files[0];
+  const f2 = document.getElementById("img2-file").files[0];
+  const threshold = document.getElementById("mt-threshold").value;
+  if (!f1 || !f2) return alert("Please upload both images.");
+
+  const btn = document.getElementById("mt-btn");
+  btn.classList.add("loading"); btn.textContent = "Processing...";
+
+  const fd = new FormData();
+  fd.append("image1", f1);
+  fd.append("image2", f2);
+  fd.append("threshold", threshold);  // FastAPI reads query param separately
+
+  try {
+    const res = await fetch(`${API}/match-two?threshold=${threshold}`, { method:"POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Server error");
+    showResult("mt-result", data, false);
+  } catch(e) {
+    showResult("mt-result", e.message, true);
+  } finally {
+    btn.classList.remove("loading"); btn.textContent = "▶ RUN COMPARISON";
+  }
+}
+
+// ── Enroll ──
+async function enrollFace() {
+  const name = document.getElementById("enroll-name").value.trim();
+  const file = document.getElementById("enroll-file").files[0];
+  if (!name) return alert("Enter a name.");
+  if (!file) return alert("Upload a face image.");
+
+  const btn = document.getElementById("enroll-btn");
+  btn.classList.add("loading"); btn.textContent = "Enrolling...";
+
+  const fd = new FormData();
+  fd.append("image", file);
+
+  try {
+    const res = await fetch(`${API}/enroll?name=${encodeURIComponent(name)}`, { method:"POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Server error");
+    const box = document.getElementById("enroll-result");
+    box.className = "result-box show matched";
+    box.innerHTML = `<div class="result-verdict"> ENROLLED</div>
+      <div class="result-row"><span class="result-key">NAME</span><span>${data.name}</span></div>`;
+  } catch(e) {
+    showResult("enroll-result", e.message, true);
+  } finally {
+    btn.classList.remove("loading"); btn.textContent = "▶ ENROLL PERSON";
+  }
+}
+
+// ── Match vs enrolled ──
+async function matchFace() {
+  const name = document.getElementById("match-name").value.trim();
+  const file = document.getElementById("match-file").files[0];
+  const threshold = document.getElementById("m-threshold").value;
+  if (!name) return alert("Enter the enrolled name.");
+  if (!file) return alert("Upload a capture image.");
+
+  const btn = document.getElementById("match-btn");
+  btn.classList.add("loading"); btn.textContent = "Matching...";
+
+  const fd = new FormData();
+  fd.append("capture", file);
+
+  try {
+    const res = await fetch(`${API}/match?stored_name=${encodeURIComponent(name)}&threshold=${threshold}`, { method:"POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Server error");
+    showResult("match-result", data, false);
+  } catch(e) {
+    showResult("match-result", e.message, true);
+  } finally {
+    btn.classList.remove("loading"); btn.textContent = "▶ MATCH FACE";
+  }
+}
+
+// ── Load enrolled list ──
+async function loadEnrolled() {
+  const wrap = document.getElementById("enrolled-list-wrap");
+  wrap.innerHTML = '<div class="empty-state">Loading...</div>';
+  try {
+    const res = await fetch(`${API}/enrolled`);
+    const data = await res.json();
+    if (!data.enrolled.length) {
+      wrap.innerHTML = '<div class="empty-state">No persons enrolled yet.</div>';
+      return;
+    }
+    wrap.innerHTML = `<ul class="enrolled-list">${data.enrolled.map(n => `
+      <li class="enrolled-item">
+        <span>◈ ${n}</span>
+        <button class="del-btn" onclick="deleteEnrolled('${n}')">DELETE</button>
+      </li>`).join("")}</ul>
+      <div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--muted);margin-top:8px">${data.count} person(s) enrolled</div>`;
+  } catch(e) {
+    wrap.innerHTML = `<div class="empty-state" style="color:var(--warn)">Could not load list.</div>`;
+  }
+}
+
+async function deleteEnrolled(name) {
+  if (!confirm(`Delete ${name}?`)) return;
+  await fetch(`${API}/enroll/${encodeURIComponent(name)}`, { method:"DELETE" });
+  loadEnrolled();
+}
+</script>
+</body>
+</html>
