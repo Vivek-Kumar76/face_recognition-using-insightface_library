@@ -25,7 +25,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/")
 def serve_frontend():
     return FileResponse("static/index.html")
-#  Load face model ONCE at startup
+
+# Pre-cache model path to avoid download at startup
+os.environ['INSIGHTFACE_HOME'] = str(Path.home() / '.insightface')
+
+# Load face model ONCE at startup
 print("Loading face model... please wait.")
 face_app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
 face_app.prepare(ctx_id=0, det_size=(640, 640))
