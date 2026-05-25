@@ -4,7 +4,6 @@ import numpy as np
 import uuid
 import os
 import shutil
-import pickle
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, HTTPException
@@ -121,9 +120,6 @@ def load_model():
         logger.info("Face model loaded.")
     return face_app
 
-# Folder to store saved embeddings
-EMBEDDINGS_DIR = Path("embeddings")
-EMBEDDINGS_DIR.mkdir(exist_ok=True)
 
 TMP_DIR = Path("tmp")
 TMP_DIR.mkdir(exist_ok=True)
@@ -163,64 +159,6 @@ def cosine_similarity(e1: np.ndarray, e2: np.ndarray) -> float:
     return float(np.dot(e1, e2) / (np.linalg.norm(e1) * np.linalg.norm(e2)))
 
 
-
-@app.post("/enroll")
-async def enroll(name: str, image: UploadFile = File(...)):
-    """
-    Save a person's face embedding by name.
-    Call this once per person to register them.
-    """
-    path = save_upload(image)
-    try:
-        embedding = await run_embedding(path)
-        if embedding is None:
-            raise HTTPException(status_code=400, detail="No face detected in image.")
-
-        save_path = EMBEDDINGS_DIR / f"{name}.pkl"
-        with open(save_path, "wb") as f:
-            pickle.dump(embedding, f)
-
-        return {"status": "enrolled", "name": name}
-    finally:
-        path.unlink(missing_ok=True)
-
-
-@app.post("/match")
-async def match(
-    stored_name: str,
-    capture: UploadFile = File(...),
-    threshold: float = 0.7
-):
-    """
-    Compare a live capture against an enrolled person.
-    Returns matched: true/false and a similarity score.
-    """
-    embed_path = EMBEDDINGS_DIR / f"{stored_name}.pkl"
-    if not embed_path.exists():
-        raise HTTPException(status_code=404, detail=f"No enrolled face found for '{stored_name}'. Enroll first.")
-
-    with open(embed_path, "rb") as f:
-        stored_embedding = pickle.load(f)
-
-    path = save_upload(capture)
-    try:
-        live_embedding = await run_embedding(path)
-        if live_embedding is None:
-            raise HTTPException(status_code=400, detail="No face detected in capture image.")
-
-        score = cosine_similarity(stored_embedding, live_embedding)
-        matched = score >= threshold
-
-        return {
-            "matched": matched,
-            "score": round(score, 4),
-            "threshold": threshold,
-            "result": "MATCHED" if matched else "NOT MATCHED"
-        }
-    finally:
-        path.unlink(missing_ok=True)
-
-
 @app.post("/match-two")
 async def match_two(
     image1: UploadFile = File(...),
@@ -248,25 +186,11 @@ async def match_two(
             "matched": matched,
             "score": round(score, 4),
             "threshold": threshold,
-            "result": "MATCHED" if matched else "NOT MATCHED"
         }
     finally:
         path1.unlink(missing_ok=True)
         path2.unlink(missing_ok=True)
 
 
-@app.get("/enrolled")
-def list_enrolled():
-    """List all enrolled people."""
-    names = [p.stem for p in EMBEDDINGS_DIR.glob("*.pkl")]
-    return {"enrolled": names, "count": len(names)}
 
 
-@app.delete("/enroll/{name}")
-def delete_enrolled(name: str):
-    """Remove an enrolled person."""
-    path = EMBEDDINGS_DIR / f"{name}.pkl"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail=f"'{name}' not found.")
-    path.unlink()
-    return {"status": "deleted", "name": name}

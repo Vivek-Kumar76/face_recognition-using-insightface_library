@@ -142,12 +142,6 @@ body::before {
     color: var(--accent);
     border: 1px solid rgba(0,212,255,0.3);
   }
-  .tab:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.03); }
-
-  /* Panel */
-  .panel { display: none; }
-  .panel.active { display: block; }
-
   /* Cards */
   .card {
     background: var(--surface);
@@ -180,7 +174,7 @@ body::before {
     margin-bottom: 6px;
   }
 
-  input[type="text"], input[type="number"] {
+  input[type="number"] {
     width: 100%;
     background: #ffffff;
     border: 1px solid var(--border);
@@ -193,11 +187,6 @@ body::before {
     transition: border-color 0.15s;
     margin-bottom: 16px;
   }
-  input[type="text"]:focus, input[type="number"]:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(0,212,255,0.08);
-  }
-
   /* Upload zone */
   .upload-zone {
     border: 1px dashed var(--border);
@@ -279,7 +268,6 @@ body::before {
   }
   .btn:hover { background: rgba(0,212,255,0.16); box-shadow: 0 0 16px rgba(0,212,255,0.12); }
   .btn:active { transform: scale(0.99); }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .btn.loading { opacity: 0.6; pointer-events: none; }
 
   /* Result box */
@@ -347,39 +335,6 @@ body::before {
     margin-top: 4px;
   }
 
-  /* Enrolled list */
-  .enrolled-list { list-style: none; }
-  .enrolled-item {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 14px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    margin-bottom: 8px;
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    background: #ffffff;
-  }
-  .enrolled-item span { color: var(--accent); }
-  .del-btn {
-    background: none;
-    border: 1px solid rgba(255,60,90,0.3);
-    border-radius: 3px;
-    color: var(--danger);
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    padding: 3px 8px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .del-btn:hover { background: rgba(255,60,90,0.1); }
-
-  .empty-state {
-    text-align: center;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    padding: 24px 0;
-  }
 </style>
 </head>
 <body>
@@ -401,10 +356,7 @@ body::before {
   </header>
 
   <div class="tabs">
-    <button class="tab active" onclick="switchTab('match-two')">Compare Two</button>
-    <button class="tab" onclick="switchTab('enroll')">Enroll</button>
-    <button class="tab" onclick="switchTab('match')">Match</button>
-    <button class="tab" onclick="switchTab('enrolled'); loadEnrolled()">Enrolled</button>
+    <button class="tab active" >Compare Two</button>
   </div>
 
   <!-- ── TAB: Compare Two Images ── -->
@@ -442,62 +394,6 @@ body::before {
     </div>
   </div>
 
-  
-  <div id="tab-enroll" class="panel">
-    <div class="card">
-      <div class="card-title">Register a new person</div>
-      <label>PERSON NAME</label>
-      <input type="text" id="enroll-name" placeholder="e.g. john_doe"/>
-
-      <label>FACE IMAGE</label>
-      <div class="upload-zone" id="zone-enroll" ondragover="dragOver(event,'zone-enroll')" ondragleave="dragLeave('zone-enroll')" ondrop="dropFile(event,'enroll-file','prev-enroll')">
-        <input type="file" id="enroll-file" accept="image/*" onchange="previewFile('enroll-file','prev-enroll','zone-enroll')"/>
-        <div class="upload-icon">◈</div>
-        <div class="upload-label">Click or drag face image</div>
-        <div class="file-name" id="fn-enroll"></div>
-      </div>
-      <div id="prev-enroll" style="display:none" class="preview-wrap"><div class="br"></div><img id="prev-enroll-img"/></div>
-
-      <button class="btn" id="enroll-btn" onclick="enrollFace()">▶ ENROLL PERSON</button>
-      <div id="enroll-result" class="result-box"></div>
-    </div>
-  </div>
-
-  <!-- ── TAB: Match vs Enrolled ── -->
-  <div id="tab-match" class="panel">
-    <div class="card">
-      <div class="card-title">Match against enrolled person</div>
-      <label>ENROLLED NAME</label>
-      <input type="text" id="match-name" placeholder="e.g. john_doe"/>
-
-      <label>LIVE / NEW IMAGE</label>
-      <div class="upload-zone" id="zone-match" ondragover="dragOver(event,'zone-match')" ondragleave="dragLeave('zone-match')" ondrop="dropFile(event,'match-file','prev-match')">
-        <input type="file" id="match-file" accept="image/*" onchange="previewFile('match-file','prev-match','zone-match')"/>
-        <div class="upload-icon">◈</div>
-        <div class="upload-label">Click or drag capture image</div>
-        <div class="file-name" id="fn-match"></div>
-      </div>
-      <div id="prev-match" style="display:none" class="preview-wrap"><div class="br"></div><img id="prev-match-img"/></div>
-
-      <label>THRESHOLD (0.0 – 1.0)</label>
-      <input type="number" id="m-threshold" value="0.5" min="0" max="1" step="0.05"/>
-
-      <button class="btn" id="match-btn" onclick="matchFace()">▶ MATCH FACE</button>
-      <div id="match-result" class="result-box"></div>
-    </div>
-  </div>
-
-  <!-- ── TAB: Enrolled List ── -->
-  <div id="tab-enrolled" class="panel">
-    <div class="card">
-      <div class="card-title">Enrolled persons</div>
-      <div id="enrolled-list-wrap">
-        <div class="empty-state">Loading...</div>
-      </div>
-    </div>
-  </div>
-
-</div><!-- /app -->
 
 <script>
 const API = "";
@@ -520,14 +416,6 @@ async function apiFetch(url, options = {}) {
   return data;
 }
 
-// ── Tab switching ──
-function switchTab(name) {
-  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.getElementById("tab-" + name).classList.add("active");
-  event.target.classList.add("active");
-}
-
 // ── Upload helpers ──
 function previewFile(inputId, prevId, zoneId) {
   const file = document.getElementById(inputId).files[0];
@@ -539,16 +427,8 @@ function previewFile(inputId, prevId, zoneId) {
     wrap.style.display = "inline-block";
   };
   reader.readAsDataURL(file);
-  const fn = document.getElementById(inputId.replace("-file","")).querySelector
-    ? null : document.getElementById("fn" + zoneId.replace("zone","").replace("-",""));
-  // update filename label
-  const fnEl = zoneId === "zone-img1" ? document.getElementById("fn1")
-             : zoneId === "zone-img2" ? document.getElementById("fn2")
-             : zoneId === "zone-enroll" ? document.getElementById("fn-enroll")
-             : document.getElementById("fn-match");
-  if (fnEl) fnEl.textContent = file.name;
-}
-
+  document.getElementById(fnId).textContent = file.name;
+  
 function dragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add("dragover"); }
 function dragLeave(id) { document.getElementById(id).classList.remove("dragover"); }
 function dropFile(e, inputId, prevId) {
@@ -560,9 +440,10 @@ function dropFile(e, inputId, prevId) {
   const dt = new DataTransfer();
   dt.items.add(file);
   document.getElementById(inputId).files = dt.files;
+  const fnId = inputId === "img1-file" ? "fn1" : "fn2";
   previewFile(inputId, prevId, zoneId);
 }
-
+}
 // ── Result renderer ──
 function showResult(boxId, data, isError) {
   const box = document.getElementById(boxId);
@@ -614,83 +495,6 @@ async function matchTwo() {
   } finally {
     btn.classList.remove("loading"); btn.textContent = "▶ RUN COMPARISON";
   }
-}
-
-// ── Enroll ──
-async function enrollFace() {
-  const name = document.getElementById("enroll-name").value.trim();
-  const file = document.getElementById("enroll-file").files[0];
-  if (!name) return alert("Enter a name.");
-  if (!file) return alert("Upload a face image.");
-
-  const btn = document.getElementById("enroll-btn");
-  btn.classList.add("loading"); btn.textContent = "Enrolling...";
-
-  const fd = new FormData();
-  fd.append("image", file);
-
-  try {
-    const data = await apiFetch(`${API}/enroll?name=${encodeURIComponent(name)}`, { method:"POST", body: fd });
-    const box = document.getElementById("enroll-result");
-    box.className = "result-box show matched";
-    box.innerHTML = `<div class="result-verdict"> ENROLLED</div>
-      <div class="result-row"><span class="result-key">NAME</span><span>${data.name}</span></div>`;
-  } catch(e) {
-    showResult("enroll-result", e.message, true);
-  } finally {
-    btn.classList.remove("loading"); btn.textContent = "▶ ENROLL PERSON";
-  }
-}
-
-// ── Match vs enrolled ──
-async function matchFace() {
-  const name = document.getElementById("match-name").value.trim();
-  const file = document.getElementById("match-file").files[0];
-  const threshold = document.getElementById("m-threshold").value;
-  if (!name) return alert("Enter the enrolled name.");
-  if (!file) return alert("Upload a capture image.");
-
-  const btn = document.getElementById("match-btn");
-  btn.classList.add("loading"); btn.textContent = "Matching...";
-
-  const fd = new FormData();
-  fd.append("capture", file);
-
-  try {
-    const data = await apiFetch(`${API}/match?stored_name=${encodeURIComponent(name)}&threshold=${threshold}`, { method:"POST", body: fd });
-    showResult("match-result", data, false);
-  } catch(e) {
-    showResult("match-result", e.message, true);
-  } finally {
-    btn.classList.remove("loading"); btn.textContent = "▶ MATCH FACE";
-  }
-}
-
-// ── Load enrolled list ──
-async function loadEnrolled() {
-  const wrap = document.getElementById("enrolled-list-wrap");
-  wrap.innerHTML = '<div class="empty-state">Loading...</div>';
-  try {
-    const data = await apiFetch(`${API}/enrolled`);
-    if (!data.enrolled.length) {
-      wrap.innerHTML = '<div class="empty-state">No persons enrolled yet.</div>';
-      return;
-    }
-    wrap.innerHTML = `<ul class="enrolled-list">${data.enrolled.map(n => `
-      <li class="enrolled-item">
-        <span>◈ ${n}</span>
-        <button class="del-btn" onclick="deleteEnrolled('${n}')">DELETE</button>
-      </li>`).join("")}</ul>
-      <div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--muted);margin-top:8px">${data.count} person(s) enrolled</div>`;
-  } catch(e) {
-    wrap.innerHTML = `<div class="empty-state" style="color:var(--warn)">Could not load list.</div>`;
-  }
-}
-
-async function deleteEnrolled(name) {
-  if (!confirm(`Delete ${name}?`)) return;
-  await fetch(`${API}/enroll/${encodeURIComponent(name)}`, { method:"DELETE" });
-  loadEnrolled();
 }
 </script>
 </body>
