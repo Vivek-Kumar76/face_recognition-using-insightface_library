@@ -2,8 +2,12 @@ services:
   - type: web
     name: face-recognition-api
     runtime: python
-    buildCommand: pip install -r requirements.txt && python -c "from insightface.app import FaceAnalysis; FaceAnalysis(name='buffalo_l')"
+    buildCommand: pip install -r requirements.txt && python -c "from insightface.app import FaceAnalysis; FaceAnalysis(name='buffalo_m', allowed_modules=['detection','recognition'])"
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.0
+      - key: INSIGHTFACE_MODEL
+        value: buffalo_m
+      - key: INSIGHTFACE_DET_SIZE
+        value: "320"

@@ -1,4 +1,3 @@
-import cv2
 import numpy as np
 import uuid
 import os
@@ -10,6 +9,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from insightface.app import FaceAnalysis
+
+# buffalo_m: medium detector + same recognition as buffalo_l (~313MB pack).
+# allowed_modules limits RAM to detection + recognition only.
+MODEL_NAME = os.getenv("INSIGHTFACE_MODEL", "buffalo_m")
+DET_SIZE = int(os.getenv("INSIGHTFACE_DET_SIZE", "320"))
 
 app = FastAPI(title="Face Recognition API")
 
@@ -36,9 +40,13 @@ def load_model():
     """Lazy load face model only when needed."""
     global face_app
     if face_app is None:
-        print("Loading face model... please wait.")
-        face_app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-        face_app.prepare(ctx_id=0, det_size=(640, 640))
+        print(f"Loading face model ({MODEL_NAME}, det={DET_SIZE})... please wait.")
+        face_app = FaceAnalysis(
+            name=MODEL_NAME,
+            providers=["CPUExecutionProvider"],
+            allowed_modules=["detection", "recognition"],
+        )
+        face_app.prepare(ctx_id=0, det_size=(DET_SIZE, DET_SIZE))
         print("Model loaded.")
     return face_app
 
@@ -61,6 +69,8 @@ def save_upload(upload: UploadFile) -> Path:
 
 def get_embedding(image_path: Path) -> np.ndarray | None:
     """Detect a face and return its 512-d embedding, or None if no face found."""
+    import cv2
+
     img = cv2.imread(str(image_path))
     if img is None:
         return None
