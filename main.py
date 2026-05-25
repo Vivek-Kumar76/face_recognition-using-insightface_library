@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 import uuid
 import os
@@ -10,10 +11,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from insightface.app import FaceAnalysis
 
-# buffalo_m: medium detector + same recognition as buffalo_l (~313MB pack).
+# buffalo_s: smaller pack (~159MB), good balance for Render 512MB RAM.
 # allowed_modules limits RAM to detection + recognition only.
-MODEL_NAME = os.getenv("INSIGHTFACE_MODEL", "buffalo_m")
+MODEL_NAME = os.getenv("INSIGHTFACE_MODEL", "buffalo_s")
 DET_SIZE = int(os.getenv("INSIGHTFACE_DET_SIZE", "320"))
+# Project-local models (NOT under .gitignore — Render must ship build artifacts).
+MODEL_ROOT = Path(__file__).resolve().parent / "insightface_models"
+
+logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(title="Face Recognition API")
 
@@ -30,24 +35,67 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 def serve_frontend():
     return FileResponse("static/index.html")
 
-# Pre-cache model path to avoid download at startup
-os.environ['INSIGHTFACE_HOME'] = str(Path.home() / '.insightface')
-
 # Global model variable (lazy loaded)
 face_app = None
+
+
+def model_pack_dir() -> Path:
+    return MODEL_ROOT / "models" / MODEL_NAME
+
+
+def ensure_model_pack() -> Path:
+    """Download model pack if missing (e.g. local dev); verify onnx files exist."""
+    from insightface.utils import ensure_available
+
+    pack_dir = model_pack_dir()
+    onnx_files = list(pack_dir.glob("*.onnx")) if pack_dir.is_dir() else []
+    if not onnx_files:
+        logger.warning("Model pack missing at %s — downloading %s", pack_dir, MODEL_NAME)
+        ensure_available("models", MODEL_NAME, root=str(MODEL_ROOT))
+        onnx_files = list(pack_dir.glob("*.onnx"))
+    if not onnx_files:
+        raise RuntimeError(
+            f"No .onnx files in {pack_dir}. "
+            "Run: python download_model.py"
+        )
+    logger.info("Model pack OK: %s (%d onnx files)", pack_dir, len(onnx_files))
+    return pack_dir
+
 
 def load_model():
     """Lazy load face model only when needed."""
     global face_app
     if face_app is None:
-        print(f"Loading face model ({MODEL_NAME}, det={DET_SIZE})... please wait.")
-        face_app = FaceAnalysis(
-            name=MODEL_NAME,
-            providers=["CPUExecutionProvider"],
-            allowed_modules=["detection", "recognition"],
-        )
-        face_app.prepare(ctx_id=0, det_size=(DET_SIZE, DET_SIZE))
-        print("Model loaded.")
+        pack_dir = model_pack_dir()
+        logger.info("Loading face model %s (det=%s) from %s", MODEL_NAME, DET_SIZE, pack_dir)
+        try:
+            ensure_model_pack()
+            face_app = FaceAnalysis(
+                name=MODEL_NAME,
+                root=str(MODEL_ROOT),
+                providers=["CPUExecutionProvider"],
+                allowed_modules=["detection", "recognition"],
+            )
+            if "detection" not in face_app.models:
+                raise RuntimeError(
+                    f"Detection model not loaded. Found tasks: {list(face_app.models)}. "
+                    f"Onnx in {pack_dir}: {[p.name for p in pack_dir.glob('*.onnx')]}"
+                )
+            face_app.prepare(ctx_id=0, det_size=(DET_SIZE, DET_SIZE))
+        except HTTPException:
+            raise
+        except Exception as exc:
+            err = f"{type(exc).__name__}: {exc!r}" if not str(exc) else f"{type(exc).__name__}: {exc}"
+            logger.exception("Failed to load face model")
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"Face model '{MODEL_NAME}' failed to load ({err}). "
+                    f"Expected files under {pack_dir}. "
+                    "On Render: redeploy and confirm build runs download_model.py successfully."
+                ),
+            ) from exc
+        logger.info("Face model loaded.")
     return face_app
 
 # Folder to store saved embeddings

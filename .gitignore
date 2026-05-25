@@ -1,10 +1,10 @@
-# Virtual Environment
-task/
+# Virtual environment
+.venv/
 venv/
 env/
-.venv/
+task/
 
-# Python artifacts
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -26,10 +26,19 @@ wheels/
 .installed.cfg
 *.egg
 
-# Temporary files
+# InsightFace weights (download with: python download_model.py)
+insightface_models/
+.insightface/
+
+# Runtime data
 tmp/
+embeddings/
 *.pkl
 *.cache
+
+# Environment
+.env
+.env.local
 
 # IDE
 .vscode/
@@ -37,10 +46,6 @@ tmp/
 *.swp
 *.swo
 
-# Environment variables
-.env
-.env.local
-
-# OS files
+# OS
 .DS_Store
 Thumbs.db
