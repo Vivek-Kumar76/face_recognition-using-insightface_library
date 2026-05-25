@@ -29,11 +29,18 @@ def serve_frontend():
 # Pre-cache model path to avoid download at startup
 os.environ['INSIGHTFACE_HOME'] = str(Path.home() / '.insightface')
 
-# Load face model ONCE at startup
-print("Loading face model... please wait.")
-face_app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-face_app.prepare(ctx_id=0, det_size=(640, 640))
-print("Model loaded.")
+# Global model variable (lazy loaded)
+face_app = None
+
+def load_model():
+    """Lazy load face model only when needed."""
+    global face_app
+    if face_app is None:
+        print("Loading face model... please wait.")
+        face_app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+        face_app.prepare(ctx_id=0, det_size=(640, 640))
+        print("Model loaded.")
+    return face_app
 
 # Folder to store saved embeddings
 EMBEDDINGS_DIR = Path("embeddings")
@@ -57,7 +64,8 @@ def get_embedding(image_path: Path) -> np.ndarray | None:
     img = cv2.imread(str(image_path))
     if img is None:
         return None
-    faces = face_app.get(img)
+    model = load_model()
+    faces = model.get(img)
     if not faces:
         return None
     # Use the largest detected face (in case of multiple faces) for embedding
@@ -121,8 +129,7 @@ async def match(
             "matched": matched,
             "score": round(score, 4),
             "threshold": threshold,
-            "name": stored_name,
-            "result": "MATCHED " if matched else "NOT MATCHED "
+            "result": "MATCHED" if matched else "NOT MATCHED"
         }
     finally:
         path.unlink(missing_ok=True)
@@ -155,7 +162,7 @@ async def match_two(
             "matched": matched,
             "score": round(score, 4),
             "threshold": threshold,
-            "result": "MATCHED " if matched else "NOT MATCHED "
+            "result": "MATCHED" if matched else "NOT MATCHED"
         }
     finally:
         path1.unlink(missing_ok=True)
@@ -177,9 +184,3 @@ def delete_enrolled(name: str):
         raise HTTPException(status_code=404, detail=f"'{name}' not found.")
     path.unlink()
     return {"status": "deleted", "name": name}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
