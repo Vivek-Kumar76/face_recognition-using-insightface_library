@@ -1,9 +1,11 @@
+import asyncio
 import logging
 import numpy as np
 import uuid
 import os
 import shutil
 import pickle
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,8 +13,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from insightface.app import FaceAnalysis
 
-# buffalo_s: smaller pack (~159MB), good balance for Render 512MB RAM.
-# allowed_modules limits RAM to detection + recognition only.
+from model_pack import prepare_pack
+
+# buffalo_s on Render: prune unused onnx (landmarks etc.) so only det+rec load into RAM.
 MODEL_NAME = os.getenv("INSIGHTFACE_MODEL", "buffalo_s")
 DET_SIZE = int(os.getenv("INSIGHTFACE_DET_SIZE", "320"))
 # Project-local models (NOT under .gitignore — Render must ship build artifacts).
@@ -20,7 +23,18 @@ MODEL_ROOT = Path(__file__).resolve().parent / "insightface_models"
 
 logger = logging.getLogger("uvicorn.error")
 
-app = FastAPI(title="Face Recognition API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Load model at startup so the first API call does not hit Render's request timeout."""
+    logger.info("Preloading face model at startup...")
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, load_model)
+    logger.info("Face model ready.")
+    yield
+
+
+app = FastAPI(title="Face Recognition API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,6 +49,15 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 def serve_frontend():
     return FileResponse("static/index.html")
 
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "model": MODEL_NAME,
+        "model_loaded": face_app is not None,
+    }
+
 # Global model variable (lazy loaded)
 face_app = None
 
@@ -48,17 +71,17 @@ def ensure_model_pack() -> Path:
     from insightface.utils import ensure_available
 
     pack_dir = model_pack_dir()
-    onnx_files = list(pack_dir.glob("*.onnx")) if pack_dir.is_dir() else []
-    if not onnx_files:
+    onnx_files = prepare_pack(pack_dir, MODEL_NAME) if pack_dir.is_dir() else []
+    if len(onnx_files) < 2:
         logger.warning("Model pack missing at %s — downloading %s", pack_dir, MODEL_NAME)
         ensure_available("models", MODEL_NAME, root=str(MODEL_ROOT))
-        onnx_files = list(pack_dir.glob("*.onnx"))
-    if not onnx_files:
+        onnx_files = prepare_pack(pack_dir, MODEL_NAME)
+    if len(onnx_files) < 2:
         raise RuntimeError(
-            f"No .onnx files in {pack_dir}. "
+            f"Need detection + recognition .onnx in {pack_dir}. "
             "Run: python download_model.py"
         )
-    logger.info("Model pack OK: %s (%d onnx files)", pack_dir, len(onnx_files))
+    logger.info("Model pack OK: %s (%s)", pack_dir, [p.name for p in onnx_files])
     return pack_dir
 
 
@@ -115,6 +138,11 @@ def save_upload(upload: UploadFile) -> Path:
     return path
 
 
+async def run_embedding(image_path: Path) -> np.ndarray | None:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, get_embedding, image_path)
+
+
 def get_embedding(image_path: Path) -> np.ndarray | None:
     """Detect a face and return its 512-d embedding, or None if no face found."""
     import cv2
@@ -144,7 +172,7 @@ async def enroll(name: str, image: UploadFile = File(...)):
     """
     path = save_upload(image)
     try:
-        embedding = get_embedding(path)
+        embedding = await run_embedding(path)
         if embedding is None:
             raise HTTPException(status_code=400, detail="No face detected in image.")
 
@@ -176,7 +204,7 @@ async def match(
 
     path = save_upload(capture)
     try:
-        live_embedding = get_embedding(path)
+        live_embedding = await run_embedding(path)
         if live_embedding is None:
             raise HTTPException(status_code=400, detail="No face detected in capture image.")
 
@@ -205,8 +233,8 @@ async def match_two(
     path1 = save_upload(image1)
     path2 = save_upload(image2)
     try:
-        e1 = get_embedding(path1)
-        e2 = get_embedding(path2)
+        e1 = await run_embedding(path1)
+        e2 = await run_embedding(path2)
 
         if e1 is None:
             raise HTTPException(status_code=400, detail="No face detected in image 1.")

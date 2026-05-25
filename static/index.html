@@ -500,7 +500,25 @@ body::before {
 </div><!-- /app -->
 
 <script>
-const API = "";  
+const API = "";
+
+async function apiFetch(url, options = {}) {
+  const res = await fetch(url, options);
+  const text = await res.text();
+  let data = {};
+  if (text) {
+    try { data = JSON.parse(text); } catch {
+      if (res.status === 502) throw new Error("Server busy or restarting (502). Wait ~1 min after deploy, then retry.");
+      if (res.status === 503) throw new Error("Face model not ready (503). Check Render logs and redeploy.");
+      throw new Error(`Server returned non-JSON (${res.status}).`);
+    }
+  }
+  if (!res.ok) {
+    const detail = data.detail;
+    throw new Error(typeof detail === "string" ? detail : `Request failed (${res.status})`);
+  }
+  return data;
+}
 
 // ── Tab switching ──
 function switchTab(name) {
@@ -589,9 +607,7 @@ async function matchTwo() {
   fd.append("threshold", threshold);  // FastAPI reads query param separately
 
   try {
-    const res = await fetch(`${API}/match-two?threshold=${threshold}`, { method:"POST", body: fd });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Server error");
+    const data = await apiFetch(`${API}/match-two?threshold=${threshold}`, { method:"POST", body: fd });
     showResult("mt-result", data, false);
   } catch(e) {
     showResult("mt-result", e.message, true);
@@ -614,9 +630,7 @@ async function enrollFace() {
   fd.append("image", file);
 
   try {
-    const res = await fetch(`${API}/enroll?name=${encodeURIComponent(name)}`, { method:"POST", body: fd });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Server error");
+    const data = await apiFetch(`${API}/enroll?name=${encodeURIComponent(name)}`, { method:"POST", body: fd });
     const box = document.getElementById("enroll-result");
     box.className = "result-box show matched";
     box.innerHTML = `<div class="result-verdict"> ENROLLED</div>
@@ -643,9 +657,7 @@ async function matchFace() {
   fd.append("capture", file);
 
   try {
-    const res = await fetch(`${API}/match?stored_name=${encodeURIComponent(name)}&threshold=${threshold}`, { method:"POST", body: fd });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Server error");
+    const data = await apiFetch(`${API}/match?stored_name=${encodeURIComponent(name)}&threshold=${threshold}`, { method:"POST", body: fd });
     showResult("match-result", data, false);
   } catch(e) {
     showResult("match-result", e.message, true);
@@ -659,8 +671,7 @@ async function loadEnrolled() {
   const wrap = document.getElementById("enrolled-list-wrap");
   wrap.innerHTML = '<div class="empty-state">Loading...</div>';
   try {
-    const res = await fetch(`${API}/enrolled`);
-    const data = await res.json();
+    const data = await apiFetch(`${API}/enrolled`);
     if (!data.enrolled.length) {
       wrap.innerHTML = '<div class="empty-state">No persons enrolled yet.</div>';
       return;
